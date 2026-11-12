@@ -13,8 +13,11 @@ const SETTLE_SECONDS: f32 = 0.22;
 /// Gap between the top controls and the top of the safe area, in points.
 const TOP_GAP: f32 = 4.0;
 
+/// The open sheet covers everything below the top controls, so the tools
+/// sit over the whole photo, as in Lightroom.
 fn max_sheet_height(viewport_height: f32) -> f32 {
-    (viewport_height * 0.65).max(1.0)
+    (viewport_height - TOP_GAP - moduwu_design::TOOLBAR_HEIGHT - 12.0 - glass::MARGIN * 2.0)
+        .max(COLLAPSED_HEIGHT)
 }
 
 fn sheet_height(viewport_height: f32, requested: f32) -> f32 {
@@ -22,11 +25,11 @@ fn sheet_height(viewport_height: f32, requested: f32) -> f32 {
     requested.clamp(COLLAPSED_HEIGHT.min(maximum), maximum)
 }
 
-/// Collapsed, half and full sheet heights, ascending.
-fn detents(viewport_height: f32) -> [f32; 3] {
+/// Collapsed and full-screen sheet heights, ascending. Tapping the handle
+/// switches between them, so no drag is needed.
+fn detents(viewport_height: f32) -> [f32; 2] {
     let full = max_sheet_height(viewport_height);
-    let half = sheet_height(viewport_height, (viewport_height * 0.45).max(360.0)).min(full);
-    [COLLAPSED_HEIGHT.min(full), half, full]
+    [COLLAPSED_HEIGHT.min(full), full]
 }
 
 /// The detent a released drag settles on: a fling moves one detent in its
@@ -46,7 +49,7 @@ fn settle(viewport_height: f32, height: f32, velocity_down: f32) -> f32 {
             .iter()
             .copied()
             .find(|stop| *stop > height + 1.0)
-            .unwrap_or(stops[2]);
+            .unwrap_or(stops[1]);
     }
     stops
         .iter()
@@ -71,13 +74,7 @@ pub(crate) fn show(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
     let height_id = egui::Id::new("portrait-tool-sheet-height");
     let drag_id = egui::Id::new("portrait-tool-sheet-drag");
     let animation_id = egui::Id::new("portrait-tool-sheet-animation");
-    let default_height = detents(canvas.height())[1];
-    // The stored height is the user's expanded size. A closed sidebar collapses
-    // the sheet to its tab bar without forgetting that size.
-    let requested = context
-        .data(|data| data.get_temp::<f32>(height_id))
-        .filter(|height| *height > COLLAPSED_HEIGHT + 1.0)
-        .unwrap_or(default_height);
+    let requested = detents(canvas.height())[1];
     let dragged_height = context.data(|data| data.get_temp::<f32>(drag_id));
     let target = if app.develop_ui.sidebar_open {
         sheet_height(canvas.height(), requested)
@@ -129,15 +126,11 @@ pub(crate) fn show(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
                 let velocity = ui.input(|input| input.pointer.velocity().y);
                 let settled = settle(canvas.height(), height, velocity);
                 app.develop_ui.sidebar_open = settled > COLLAPSED_HEIGHT + 1.0;
-                context.data_mut(|data| {
-                    data.remove::<f32>(drag_id);
-                    if settled > COLLAPSED_HEIGHT + 1.0 {
-                        data.insert_temp(height_id, settled);
-                    }
-                });
+                context.data_mut(|data| data.remove::<f32>(drag_id));
             } else if response.clicked() {
                 app.develop_ui.sidebar_open = !app.develop_ui.sidebar_open;
             }
+            show_compare_button(ui, app, handle);
             let content = Rect::from_min_max(
                 egui::pos2(sheet.left() + 4.0, handle.bottom()),
                 egui::pos2(
@@ -170,6 +163,47 @@ pub(crate) fn show(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
     );
     app.show_preview(ui, frame, Some(photo));
     photo_gestures::handle(ui, app, frame, canvas);
+}
+
+/// Press and hold to see the unedited original, release to return to the
+/// edit. The sheet can cover the photo, where the long press on the photo
+/// itself cannot reach, so the comparison also lives on the sheet.
+fn show_compare_button(ui: &mut Ui, app: &mut CalibRawApp, handle: Rect) {
+    let id = egui::Id::new("portrait-compare-hold");
+    let size = HANDLE_HEIGHT + 8.0;
+    let rect = Rect::from_center_size(
+        egui::pos2(handle.right() - size * 0.5 - 10.0, handle.center().y + 4.0),
+        egui::vec2(size, size),
+    );
+    let response = ui
+        .interact(rect, id, Sense::click_and_drag())
+        .on_hover_text(crate::i18n::tr("Hold to show original"));
+    let holding = response.is_pointer_button_down_on();
+    let was_holding = ui
+        .ctx()
+        .data(|data| data.get_temp::<bool>(id))
+        .unwrap_or(false);
+    if holding != was_holding {
+        app.set_original_preview_requested(holding);
+        ui.ctx().data_mut(|data| data.insert_temp(id, holding));
+    }
+    let visuals = ui.visuals();
+    let color = if holding {
+        visuals.selection.bg_fill
+    } else {
+        visuals.text_color().gamma_multiply(0.8)
+    };
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        if holding {
+            egui_phosphor::regular::EYE_SLASH
+        } else {
+            egui_phosphor::regular::EYE
+        },
+        egui::FontId::proportional(20.0),
+        color,
+    );
 }
 
 fn top_controls_rect(canvas: Rect) -> Rect {

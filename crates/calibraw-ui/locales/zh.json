@@ -1580,6 +1580,7 @@
   "Show filmstrip": "显示胶片栏",
   "Show in File Manager": "在文件管理器中显示",
   "Show only the RAW": "仅显示 RAW",
+  "Hold to show original": "按住显示原图",
   "Show original preview": "显示原始预览",
   "Show seen tips again": "重新显示已看过的提示",
   "Show the selected range with the same blue translucent overlay used for masks. Feathered pixels use a softer overlay. This preview is never exported.": "使用与蒙版相同的蓝色半透明叠加层显示所选范围。羽化像素会使用更柔和的叠加层。此预览绝不会导出。",
