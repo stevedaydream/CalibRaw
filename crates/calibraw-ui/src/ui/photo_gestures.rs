@@ -4,7 +4,9 @@
 //!
 //! - a quick horizontal swipe on the fitted photo opens the previous or next
 //!   photo, as ← and → do;
-//! - a two-finger tap undoes the last edit, a three-finger tap redoes it.
+//! - a two-finger tap undoes the last edit, a three-finger tap redoes it;
+//! - a single tap hides or shows every control over the photo. It waits out
+//!   the double-tap window first, so the double-tap fit never toggles it.
 //!
 //! Gestures only start on the photo's own layer, so a touch that lands on a
 //! glass surface never counts. Tabs whose canvas tools take single-finger
@@ -28,6 +30,13 @@ const TAP_MAX_TRAVEL: f32 = 14.0;
 /// Most the fingers of a tap may land apart in time, in seconds: a tap is
 /// not a second finger joining a stroke already under way.
 const TAP_LANDING_WINDOW: f64 = 0.15;
+/// Longest a single tap may last, in seconds; longer presses are holds.
+const SINGLE_TAP_MAX_SECONDS: f64 = 0.25;
+/// Most a single tap may travel, in points.
+const SINGLE_TAP_MAX_TRAVEL: f32 = 10.0;
+/// How long a single tap waits for a second one, in seconds. Matches the
+/// double-tap window of the preview's fit gesture.
+const DOUBLE_TAP_WINDOW: f64 = 0.3;
 
 #[derive(Clone, Copy)]
 struct Swipe {
@@ -49,10 +58,36 @@ struct Tap {
 struct GestureState {
     swipe: Option<Swipe>,
     tap: Option<Tap>,
+    /// Release time of a single tap still waiting out the double-tap window.
+    pending_tap: Option<f64>,
+    /// The current press is the second tap of a double tap.
+    second_tap: bool,
 }
 
 fn state_id() -> egui::Id {
     egui::Id::new("develop-photo-gestures")
+}
+
+fn immersive_id() -> egui::Id {
+    egui::Id::new("develop-immersive")
+}
+
+/// Whether a tap on the photo hid the controls.
+pub(crate) fn immersive(ctx: &egui::Context) -> bool {
+    ctx.data(|data| data.get_temp::<bool>(immersive_id()))
+        .unwrap_or(false)
+}
+
+/// Whether the open tab leaves single taps on the photo free.
+fn tap_allowed(app: &CalibRawApp) -> bool {
+    let tool_owns_tap = matches!(
+        app.ui.sidebar_tab,
+        SidebarTab::Masks | SidebarTab::Inpainting | SidebarTab::Crop
+    );
+    let picker_active = app.develop_ui.area_picker.is_some()
+        || app.develop_ui.point_color.picker_active
+        || app.develop_ui.mask_point_color.picker_active;
+    !tool_owns_tap && !picker_active && !app.preview.original_hold_owns_touch()
 }
 
 /// Whether the open tab leaves single-finger drags on the photo free.
@@ -94,6 +129,10 @@ pub(crate) fn handle(ui: &Ui, app: &mut CalibRawApp, frame: &eframe::Frame, area
     });
 
     if pressed {
+        state.second_tap = state
+            .pending_tap
+            .take()
+            .is_some_and(|released| now - released <= DOUBLE_TAP_WINDOW);
         state.swipe = press_origin
             .filter(|origin| on_photo(*origin))
             .map(|origin| Swipe {
@@ -146,6 +185,26 @@ pub(crate) fn handle(ui: &Ui, app: &mut CalibRawApp, frame: &eframe::Frame, area
                 // Finger moving left reveals the next photo, as in a gallery.
                 open_adjacent_photo(app, delta.x < 0.0, frame);
             }
+            let is_tap = !swipe.multi_touch
+                && now - swipe.started <= SINGLE_TAP_MAX_SECONDS
+                && delta.length() <= SINGLE_TAP_MAX_TRAVEL;
+            if is_tap && !state.second_tap && tap_allowed(app) {
+                state.pending_tap = Some(now);
+            }
+        }
+        state.second_tap = false;
+    }
+
+    if let Some(released) = state.pending_tap {
+        let waited = now - released;
+        if waited > DOUBLE_TAP_WINDOW {
+            state.pending_tap = None;
+            let hidden = immersive(&ctx);
+            ctx.data_mut(|data| data.insert_temp(immersive_id(), !hidden));
+        } else {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64(
+                DOUBLE_TAP_WINDOW - waited + 0.01,
+            ));
         }
     }
 

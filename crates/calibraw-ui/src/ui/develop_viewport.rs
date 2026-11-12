@@ -87,19 +87,34 @@ pub(crate) fn show(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
         None => context.animate_value_with_time(animation_id, target, SETTLE_SECONDS),
     };
 
-    show_top_controls(&context, top, app, frame, TopBar::show_portrait);
+    // A tap on the photo hides every control; the fade keeps the switch
+    // from flashing.
+    let chrome = context.animate_bool_with_time(
+        egui::Id::new("develop-chrome-visible"),
+        !photo_gestures::immersive(&context),
+        SETTLE_SECONDS,
+    );
+    if chrome > 0.0 {
+        show_top_controls(&context, top, app, frame, chrome, TopBar::show_portrait);
+    }
 
     let inner = canvas.shrink2(egui::vec2(glass::MARGIN, 0.0));
     let sheet = Rect::from_min_max(
         egui::pos2(inner.left(), inner.bottom() - glass::MARGIN - height),
         egui::pos2(inner.right(), inner.bottom() - glass::MARGIN),
     );
+    let tab_before = app.ui.sidebar_tab;
     egui::Area::new(egui::Id::new("portrait-tool-sheet"))
         .order(egui::Order::Middle)
         .fixed_pos(sheet.min)
         .movable(false)
         .constrain(false)
+        .interactable(chrome >= 1.0)
         .show(&context, |ui| {
+            if chrome <= 0.0 {
+                return;
+            }
+            ui.multiply_opacity(chrome);
             ui.set_min_size(sheet.size());
             ui.set_max_size(sheet.size());
             glass::paint(ui, sheet, glass::floating_corners());
@@ -151,6 +166,10 @@ pub(crate) fn show(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
             }
             Sidebar::show(&mut content_ui, app, ScreenLayout::Vertical, frame);
         });
+    // Choosing a tool tab on the collapsed sheet opens it full screen.
+    if app.ui.sidebar_tab != tab_before {
+        app.develop_ui.sidebar_open = true;
+    }
 
     // The photo is centred above the collapsed sheet whatever the sheet's
     // height, and continues full-bleed behind every glass surface.
@@ -221,6 +240,7 @@ fn show_top_controls(
     top: Rect,
     app: &mut CalibRawApp,
     frame: &eframe::Frame,
+    opacity: f32,
     contents: fn(&mut Ui, &mut CalibRawApp, &eframe::Frame),
 ) {
     egui::Area::new(egui::Id::new("portrait-top-controls"))
@@ -228,7 +248,9 @@ fn show_top_controls(
         .fixed_pos(top.min)
         .movable(false)
         .constrain(false)
+        .interactable(opacity >= 1.0)
         .show(context, |ui| {
+            ui.multiply_opacity(opacity);
             ui.set_min_size(top.size());
             ui.set_max_size(top.size());
             glass::paint(ui, top, CornerRadius::same((top.height() * 0.5) as u8));
@@ -247,7 +269,14 @@ fn show_landscape(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
     let canvas = ui.available_rect_before_wrap();
     let context = ui.ctx().clone();
     let top = top_controls_rect(canvas);
-    show_top_controls(&context, top, app, frame, TopBar::show_portrait);
+    let chrome = context.animate_bool_with_time(
+        egui::Id::new("develop-chrome-visible"),
+        !photo_gestures::immersive(&context),
+        SETTLE_SECONDS,
+    );
+    if chrome > 0.0 {
+        show_top_controls(&context, top, app, frame, chrome, TopBar::show_portrait);
+    }
     let rail_width = Sidebar::ANDROID_LANDSCAPE_TOOL_RAIL_WIDTH;
     let below_top = top.bottom() + glass::MARGIN * 0.6;
     let rail = Rect::from_min_max(
@@ -273,7 +302,12 @@ fn show_landscape(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
         .fixed_pos(rail.min)
         .movable(false)
         .constrain(false)
+        .interactable(chrome >= 1.0)
         .show(&context, |ui| {
+            if chrome <= 0.0 {
+                return;
+            }
+            ui.multiply_opacity(chrome);
             ui.set_min_size(rail.size());
             ui.set_max_size(rail.size());
             glass::paint(ui, rail, glass::floating_corners());
@@ -281,13 +315,15 @@ fn show_landscape(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
             ui.set_clip_rect(rail);
             Sidebar::show_android_landscape_primary_tabs(ui, app);
         });
-    if app.develop_ui.sidebar_open {
+    if app.develop_ui.sidebar_open && chrome > 0.0 {
         egui::Area::new(egui::Id::new("landscape-overlay-tools"))
             .order(egui::Order::Middle)
             .fixed_pos(tools.min)
             .movable(false)
             .constrain(false)
+            .interactable(chrome >= 1.0)
             .show(&context, |ui| {
+                ui.multiply_opacity(chrome);
                 ui.set_min_size(tools.size());
                 ui.set_max_size(tools.size());
                 glass::paint(ui, tools, glass::floating_corners());

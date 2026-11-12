@@ -7,7 +7,7 @@
 //! [`translucent_contents`], so panel and card fills do not repaint an opaque
 //! layer over the tint.
 
-use eframe::egui::{self, Color32, CornerRadius, Rect, Stroke, StrokeKind, Ui};
+use eframe::egui::{Color32, CornerRadius, Rect, Stroke, StrokeKind, Ui};
 
 /// Corner radius of floating surfaces, in points.
 pub(crate) const CORNER: u8 = 22;
