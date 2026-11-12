@@ -164,7 +164,10 @@ pub(crate) fn show(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
                         Sidebar::show_vertical_mask_strip(ui, app, frame)
                     });
             }
+            // Hairline sliders keep the photo visible under the tools.
+            moduwu_design::set_thin_slider_style(ui.ctx(), true);
             Sidebar::show(&mut content_ui, app, ScreenLayout::Vertical, frame);
+            moduwu_design::set_thin_slider_style(ui.ctx(), false);
         });
     // Choosing a tool tab on the collapsed sheet opens it full screen.
     if app.ui.sidebar_tab != tab_before {
@@ -339,7 +342,9 @@ fn show_landscape(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
                             Sidebar::show_vertical_mask_strip(ui, app, frame)
                         });
                 }
+                moduwu_design::set_thin_slider_style(ui.ctx(), true);
                 Sidebar::show(&mut content, app, ScreenLayout::Horizontal, frame);
+                moduwu_design::set_thin_slider_style(ui.ctx(), false);
             });
     }
     // The photo fills everything left of the rail; the tools panel floats
