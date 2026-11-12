@@ -267,9 +267,12 @@ jobs:
             # Release variant without a signing config produces an unsigned APK.
             gradle_task=assembleRelease
             apk_path="android/app/build/outputs/apk/release/app-release-unsigned.apk"
-            output_name="CalibRaw-unsigned-arm64-v8a.apk"
-            artifact_name="calibraw-android-unsigned-arm64-v8a"
+            output_name="CalibRaw-fork-arm64-v8a.apk"
+            artifact_name="calibraw-android-fork-arm64-v8a"
             signing_args=()
+            # Fork builds are signed with the public test key in
+            # android/fork-debug.keystore so they install and update in place.
+            fork_debug_sign=1
             version_code="$GITHUB_RUN_NUMBER"
           fi
 
@@ -297,6 +300,18 @@ jobs:
           if [ "$CALIBRAW_DISTRIBUTION" != "googleplay" ] && { [ "$GITHUB_REF" = "refs/heads/main" ] || [[ "$GITHUB_REF" == refs/tags/v* ]]; }; then
             "$ANDROID_HOME/build-tools/$CALIBRAW_ANDROID_BUILD_TOOLS_VERSION/apksigner" \
               verify --verbose --print-certs "$APK"
+          fi
+          if [ -n "${fork_debug_sign:-}" ]; then
+            signed_apk="$RUNNER_TEMP/CalibRaw-fork-signed.apk"
+            "$ANDROID_HOME/build-tools/$CALIBRAW_ANDROID_BUILD_TOOLS_VERSION/apksigner" sign \
+              --ks android/fork-debug.keystore \
+              --ks-pass pass:android \
+              --key-pass pass:android \
+              --ks-key-alias forkdebug \
+              --out "$signed_apk" \
+              "$APK"
+            "$ANDROID_HOME/build-tools/$CALIBRAW_ANDROID_BUILD_TOOLS_VERSION/apksigner" verify "$signed_apk"
+            APK="$signed_apk"
           fi
           mkdir -p dist
           cp "$APK" "dist/$output_name"
