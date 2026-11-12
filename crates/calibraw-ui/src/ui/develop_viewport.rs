@@ -174,16 +174,9 @@ pub(crate) fn show(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
         app.develop_ui.sidebar_open = true;
     }
 
-    // The photo is centred above the collapsed sheet whatever the sheet's
-    // height, and continues full-bleed behind every glass surface.
-    let photo = Rect::from_min_max(
-        canvas.min,
-        egui::pos2(
-            canvas.right(),
-            (canvas.bottom() - glass::MARGIN - COLLAPSED_HEIGHT).max(canvas.top() + 1.0),
-        ),
-    );
-    app.show_preview(ui, frame, Some(photo));
+    // The photo fills the whole screen behind every glass surface, so it
+    // never moves when the sheet opens, closes or is dragged.
+    app.show_preview(ui, frame, Some(canvas));
     photo_gestures::handle(ui, app, frame, canvas);
 }
 

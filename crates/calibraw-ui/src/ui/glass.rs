@@ -68,8 +68,25 @@ pub(crate) fn translucent_contents(ui: &mut Ui) {
     visuals.window_fill = Color32::TRANSPARENT;
     visuals.faint_bg_color = nested_fill(dark);
     visuals.widgets.noninteractive.bg_fill = Color32::TRANSPARENT;
-    // Slider tracks and text fields stay legible but let the photo through.
-    visuals.extreme_bg_color = visuals.extreme_bg_color.gamma_multiply(0.35);
+    // Full-strength text: the dimmed label colour disappears over bright
+    // pixels once the surface itself is nearly clear.
+    visuals.override_text_color = Some(if dark {
+        Color32::from_gray(248)
+    } else {
+        Color32::from_gray(12)
+    });
+    // Value fields, buttons and text fields keep a faint body so their edge
+    // reads, but let the photo through.
+    visuals.extreme_bg_color = visuals.extreme_bg_color.gamma_multiply(0.25);
+    for widget in [
+        &mut visuals.widgets.inactive,
+        &mut visuals.widgets.hovered,
+        &mut visuals.widgets.active,
+        &mut visuals.widgets.open,
+    ] {
+        widget.bg_fill = widget.bg_fill.gamma_multiply(0.25);
+        widget.weak_bg_fill = widget.weak_bg_fill.gamma_multiply(0.25);
+    }
 }
 
 /// Corners for a surface docked to no edge.
