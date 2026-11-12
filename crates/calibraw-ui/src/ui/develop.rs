@@ -28,7 +28,7 @@ pub(crate) struct Develop;
 
 /// Opens the folder photo before or after the open one, as the library
 /// shows them; media-library photos have no neighbours here.
-fn open_adjacent_photo(app: &mut CalibRawApp, forward: bool, frame: &eframe::Frame) {
+pub(crate) fn open_adjacent_photo(app: &mut CalibRawApp, forward: bool, frame: &eframe::Frame) {
     let Some(current_path) = app.develop.current_path.as_deref() else {
         return;
     };
